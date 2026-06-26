@@ -1,6 +1,3 @@
-// snake.cpp
-// Simple Snake game using SDL2 - beginner friendly
-
 #include <SDL.h>
 #include <cstdlib>
 #include <ctime>
@@ -12,8 +9,7 @@ const int WINDOW_H = 480;
 const int CELL_SIZE = 20;
 const int COLS = WINDOW_W / CELL_SIZE;
 const int ROWS = WINDOW_H / CELL_SIZE;
-const int FPS = 10; // snake speed (frames per second)
-
+const int FPS = 10; 
 enum Direction { UP, DOWN, LEFT, RIGHT };
 
 struct Point { int x, y; };
@@ -27,7 +23,6 @@ public:
         growFlag = false;
     }
     void setDir(Direction d) {
-        // Prevent reversing directly
         if ((dir == LEFT && d == RIGHT) || (dir == RIGHT && d == LEFT) ||
             (dir == UP && d == DOWN) || (dir == DOWN && d == UP)) return;
         dir = d;
@@ -126,10 +121,8 @@ int main(int argc, char* argv[]) {
             if (h.x < 0 || h.x >= COLS || h.y < 0 || h.y >= ROWS) {
                 gameOver = true;
             }
-            // Check self collision
             if (snake.hitsSelf()) gameOver = true;
 
-            // Check food collision
             if (!gameOver && h.x == food.x && h.y == food.y) {
                 snake.grow();
                 score += 10;
@@ -163,9 +156,6 @@ int main(int argc, char* argv[]) {
             else SDL_SetRenderDrawColor(ren, 30, 150, 30, 255);
             SDL_RenderFillRect(ren, &r);
         }
-
-        // Draw score (simple blocks representing digits)
-        // For simplicity: draw score as small rectangles in top-left
         int sx = 6, sy = 6, sw = 6, sh = 10;
         int tmp = score;
         if (tmp == 0) {
@@ -199,11 +189,9 @@ int main(int argc, char* argv[]) {
             SDL_RenderFillRect(ren, &b2);
             // (Press R to restart) — user sees visual indication; real text needs SDL_ttf
         }
-
         SDL_RenderPresent(ren);
         SDL_Delay(8); // small delay to reduce CPU usage
     }
-
     SDL_DestroyRenderer(ren);
     SDL_DestroyWindow(window);
     SDL_Quit();
