@@ -233,3 +233,152 @@ public:
 #endif
 
 //part5
+#include "Snake.h"
+
+Snake::Snake()
+{
+    reset();
+}
+
+void Snake::reset()
+{
+    body.clear();
+
+    SnakePart head;
+
+    head.x = 10;
+    head.y = 10;
+
+    body.push_back(head);
+
+    direction = 3;
+
+    growCount = 0;
+}
+
+void Snake::input(SDL_Event event)
+{
+    if(event.type == SDL_KEYDOWN)
+    {
+        switch(event.key.keysym.sym)
+        {
+        case SDLK_UP:
+
+            if(direction != 1)
+                direction = 0;
+
+            break;
+
+        case SDLK_DOWN:
+
+            if(direction != 0)
+                direction = 1;
+
+            break;
+
+        case SDLK_LEFT:
+
+            if(direction != 3)
+                direction = 2;
+
+            break;
+
+        case SDLK_RIGHT:
+
+            if(direction != 2)
+                direction = 3;
+
+            break;
+        }
+    }
+}
+
+void Snake::move()
+{
+    SnakePart head = body[0];
+
+    if(direction == 0)
+    {
+        head.y--;
+    }
+    else if(direction == 1)
+    {
+        head.y++;
+    }
+    else if(direction == 2)
+    {
+        head.x--;
+    }
+    else if(direction == 3)
+    {
+        head.x++;
+    }
+
+    body.insert(body.begin(), head);
+
+    if(growCount > 0)
+    {
+        growCount--;
+    }
+    else
+    {
+        body.pop_back();
+    }
+}
+
+void Snake::grow()
+{
+    growCount++;
+}
+
+void Snake::draw(SDL_Renderer* renderer)
+{
+    SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+
+    for(int i = 0; i < body.size(); i++)
+    {
+        SDL_Rect rect;
+
+        rect.x = body[i].x * 20;
+        rect.y = body[i].y * 20;
+        rect.w = 20;
+        rect.h = 20;
+
+        SDL_RenderFillRect(renderer, &rect);
+    }
+}
+
+bool Snake::checkCollision()
+{
+    int headX = body[0].x;
+    int headY = body[0].y;
+
+    // Wall Collision
+
+    if(headX < 0 || headX >= 30 || headY < 0 || headY >= 30)
+    {
+        return true;
+    }
+
+    // Self Collision
+
+    for(int i = 1; i < body.size(); i++)
+    {
+        if(headX == body[i].x && headY == body[i].y)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+int Snake::getHeadX()
+{
+    return body[0].x;
+}
+
+int Snake::getHeadY()
+{
+    return body[0].y;
+}
