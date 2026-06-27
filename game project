@@ -55,3 +55,33 @@ public:
         return false;
     }
 };
+void spawnFood(SDL_Rect& food) {
+   
+    int maxX = WINDOW_WIDTH / BLOCK_SIZE;
+    int maxY = WINDOW_HEIGHT / BLOCK_SIZE;
+    
+    food.x = (rand() % maxX) * BLOCK_SIZE;
+    food.y = (rand() % maxY) * BLOCK_SIZE;
+    food.w = BLOCK_SIZE;
+    food.h = BLOCK_SIZE;
+}
+
+int main(int argc, char* argv[]) {
+   
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        return -1;
+    }
+
+    SDL_Window* window = SDL_CreateWindow("Snake Game - Score: 0", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+
+
+    srand(time(NULL)); // Seed random number generator
+    Snake snake;
+    SDL_Rect food;
+    spawnFood(food);
+    
+    int score = 0;
+    bool isRunning = true;
+    bool isGameOver = false;
+    SDL_Event event;
