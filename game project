@@ -110,3 +110,50 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
+     if (!isGameOver) {
+            snake.move();
+
+          
+            if (snake.body[0].x == food.x && snake.body[0].y == food.y) {
+                snake.grow();
+                score += 10;
+                spawnFood(food);
+                
+                std::string title = "Snake Game - Score: " + std::to_string(score);
+                SDL_SetWindowTitle(window, title.c_str());
+            }
+
+            if (snake.checkCollision()) {
+                isGameOver = true;
+                std::string gameOverTitle = "GAME OVER! Final Score: " + std::to_string(score);
+                SDL_SetWindowTitle(window, gameOverTitle.c_str());
+            }
+        }
+
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+
+        if (!isGameOver) {
+            
+            SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+            SDL_RenderFillRect(renderer, &food);
+
+            SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+            for (size_t i = 0; i < snake.body.size(); i++) {
+                SDL_RenderFillRect(renderer, &snake.body[i]);
+            }
+        }
+
+     
+        SDL_RenderPresent(renderer);
+
+       
+        SDL_Delay(100); 
+    }
+
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+
+    return 0;
+}
