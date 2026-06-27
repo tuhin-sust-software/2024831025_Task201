@@ -167,3 +167,26 @@ int main(int argc, char* argv[]) {
                 placeFood();
             }
         }
+   if (!gameOver) {
+            Uint32 now = SDL_GetTicks();
+            if (now - lastMoveTime >= MOVE_INTERVAL) {
+                bool grow = false;
+                if (snake.eatsFood(food)) {
+                    grow = true;
+                    score += 10;
+                    placeFood();
+                }
+                snake.move(grow);
+
+              
+                if (snake.checkWallCollision() || snake.checkSelfCollision()) {
+                    gameOver = true;
+                }
+
+                lastMoveTime = now;
+            }
+        }
+
+       
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);   // black background
+        SDL_RenderClear(renderer);
