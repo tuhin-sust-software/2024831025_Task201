@@ -190,3 +190,41 @@ int main(int argc, char* argv[]) {
        
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);   // black background
         SDL_RenderClear(renderer);
+   SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // red
+        SDL_Rect foodRect = { food.x * CELL_SIZE, food.y * CELL_SIZE,
+                              CELL_SIZE, CELL_SIZE };
+        SDL_RenderFillRect(renderer, &foodRect);
+
+        
+        snake.render(renderer);
+
+       
+        SDL_Color white = {255, 255, 255};
+        std::string scoreText = "Score: " + std::to_string(score);
+        SDL_Texture* scoreTex = renderText(scoreText, font, white, renderer);
+        if (scoreTex) {
+            SDL_Rect scoreRect = {10, 10, 0, 0};
+            SDL_QueryTexture(scoreTex, NULL, NULL, &scoreRect.w, &scoreRect.h);
+            SDL_RenderCopy(renderer, scoreTex, NULL, &scoreRect);
+            SDL_DestroyTexture(scoreTex);
+        }
+
+        
+        if (gameOver) {
+            // Semi-transparent black background
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
+            SDL_Rect overlay = {0, 0, WINDOW_WIDTH, WINDOW_HEIGHT};
+            SDL_RenderFillRect(renderer, &overlay);
+            SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
+
+            
+            SDL_Texture* goTex = renderText("GAME OVER", font, white, renderer);
+            if (goTex) {
+                SDL_Rect goRect;
+                SDL_QueryTexture(goTex, NULL, NULL, &goRect.w, &goRect.h);
+                goRect.x = (WINDOW_WIDTH  - goRect.w) / 2;
+                goRect.y = (WINDOW_HEIGHT - goRect.h) / 2 - 30;
+                SDL_RenderCopy(renderer, goTex, NULL, &goRect);
+                SDL_DestroyTexture(goTex);
+            }
