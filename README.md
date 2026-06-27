@@ -64,4 +64,29 @@ void handleInput(SDL_Event &e) {
         }
         return false;
     }
+  bool eatsFood(SDL_Point food) {
+        return (body[0].x == food.x && body[0].y == food.y);
+    }
 
+    void render(SDL_Renderer* renderer) {
+    
+        SDL_SetRenderDrawColor(renderer, 0, 150, 0, 255);   // dark green
+        SDL_Rect headRect = { body[0].x * CELL_SIZE, body[0].y * CELL_SIZE,
+                              CELL_SIZE, CELL_SIZE };
+        SDL_RenderFillRect(renderer, &headRect);
+
+        SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+        for (size_t i = 1; i < body.size(); i++) {
+            SDL_Rect rect = { body[i].x * CELL_SIZE, body[i].y * CELL_SIZE,
+                              CELL_SIZE, CELL_SIZE };
+            SDL_RenderFillRect(renderer, &rect);
+        }
+    }
+
+    std::vector<SDL_Point>& getBody() { return body; }
+
+private:
+    std::vector<SDL_Point> body;
+    Direction direction;
+    Direction nextDirection;
+};
