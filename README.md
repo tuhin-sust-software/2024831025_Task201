@@ -124,4 +124,32 @@ int main(int argc, char* argv[]) {
         SDL_Log("Renderer creation failed: %s", SDL_GetError());
         return 1;
     }
+ TTF_Font* font = TTF_OpenFont("arial.ttf", 24); 
+    if (!font) {
+        SDL_Log("Failed to load font: %s", TTF_GetError());
+        return 1;
+    }
+    Snake snake;
+    SDL_Point food;
+    int score = 0;
+    bool gameOver = false;
+    srand(time(nullptr));
 
+    auto placeFood = [&]() {
+        bool valid;
+        do {
+            valid = true;
+            food.x = rand() % GRID_WIDTH;
+            food.y = rand() % GRID_HEIGHT;
+            for (auto &seg : snake.getBody()) {
+                if (seg.x == food.x && seg.y == food.y) {
+                    valid = false;
+                    break;
+                }
+            }
+        } while (!valid);
+    };
+    placeFood();
+
+    const Uint32 MOVE_INTERVAL = 150; 
+    Uint32 lastMoveTime = SDL_GetTicks();
