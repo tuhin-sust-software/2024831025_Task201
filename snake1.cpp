@@ -1,342 +1,297 @@
-#include <SDL.h>
-#include <SDL_ttf.h>
-#include <deque>
-#include <random>
-#include <string>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <iostream>
+#include <vector>
+#include <string>
+#include <cstdlib>
+#include <ctime>
 
-struct Cell {
-    int x;
-    int y;
-};
+using namespace std;
 
-enum Direction {
-    DIR_UP,
-    DIR_DOWN,
-    DIR_LEFT,
-    DIR_RIGHT
-};
+const int SCREEN_W   = 640;
+const int SCREEN_H   = 480;
+const int BOX        = 20;
+const int GAME_SPEED = 130;
+
+SDL_Color COLOR_WHITE   = {255, 255, 255, 255};
+SDL_Color COLOR_RED     = {255,  60,  60, 255};
+SDL_Color COLOR_YELLOW  = {255, 220,   0, 255};
+SDL_Color COLOR_GREEN   = {  0, 200,   0, 255};
+SDL_Color COLOR_DKGREEN = {  0, 140,   0, 255};
+SDL_Color COLOR_BLACK   = {  0,   0,   0, 255};
+
+TTF_Font* findFont(int size) {
+    vector<string> paths = {
+        "font.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
+        "/System/Library/Fonts/Helvetica.ttc",
+        "C:/Windows/Fonts/arial.ttf"
+    };
+
+    for (int i = 0; i < (int)paths.size(); i++) {
+        TTF_Font* f = TTF_OpenFont(paths[i].c_str(), size);
+        if (f != nullptr) {
+            cout << "Font পাওয়া গেছে: " << paths[i] << endl;
+            return f;
+        }
+    }
+
+    cout << "কোনো font পাওয়া যায়নি — text দেখাবে না" << endl;
+    return nullptr;
+}
+
+void drawBox(SDL_Renderer* renderer, int x, int y, int size, SDL_Color color) {
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    SDL_Rect box = {x, y, size, size};
+    SDL_RenderFillRect(renderer, &box);
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderDrawRect(renderer, &box);
+}
+
+void drawText(SDL_Renderer* renderer, TTF_Font* font,
+              string text, int x, int y, SDL_Color color) {
+    if (font == nullptr) return;
+    SDL_Surface* surface = TTF_RenderText_Solid(font, text.c_str(), color);
+    if (surface == nullptr) return;
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_Rect position    = {x, y, surface->w, surface->h};
+    SDL_RenderCopy(renderer, texture, nullptr, &position);
+    SDL_FreeSurface(surface);
+    SDL_DestroyTexture(texture);
+}
+
+int getTextWidth(TTF_Font* font, string text) {
+    if (font == nullptr) return 0;
+    int w = 0, h = 0;
+    TTF_SizeText(font, text.c_str(), &w, &h);
+    return w;
+}
+
+void drawTextCentered(SDL_Renderer* renderer, TTF_Font* font,
+                      string text, int y, SDL_Color color) {
+    int x = (SCREEN_W - getTextWidth(font, text)) / 2;
+    drawText(renderer, font, text, x, y, color);
+}
+
+SDL_Point makeFood(vector<SDL_Point> snakeBody) {
+    int totalCols = SCREEN_W / BOX;
+    int totalRows = SCREEN_H / BOX;
+
+    SDL_Point food;
+    bool foodOnSnake = true;
+
+    while (foodOnSnake) {
+        food.x       = (rand() % totalCols) * BOX;
+        food.y       = (rand() % totalRows) * BOX;
+        foodOnSnake  = false;
+
+        for (int i = 0; i < (int)snakeBody.size(); i++) {
+            if (food.x == snakeBody[i].x && food.y == snakeBody[i].y) {
+                foodOnSnake = true;
+                break;
+            }
+        }
+    }
+
+    return food;
+}
 
 class Snake {
 public:
+    vector<SDL_Point> body;
+    int dirX, dirY;
+    int nextDirX, nextDirY;
+    bool keyPressed;
+
     Snake(int startX, int startY) {
-        body.push_back({startX, startY});
-        dir = DIR_RIGHT;
-        growPending = 0;
+        dirX       =  1;
+        dirY       =  0;
+        nextDirX   =  1;
+        nextDirY   =  0;
+        keyPressed = false;
+
+        body.push_back({startX,           startY});
+        body.push_back({startX - BOX,     startY});
+        body.push_back({startX - BOX * 2, startY});
     }
 
-    void setDirection(Direction d) {
-        // Prevent reversing directly into yourself
-        if ((dir == DIR_UP && d == DIR_DOWN) ||
-            (dir == DIR_DOWN && d == DIR_UP) ||
-            (dir == DIR_LEFT && d == DIR_RIGHT) ||
-            (dir == DIR_RIGHT && d == DIR_LEFT)) {
-            return;
-        }
-        dir = d;
+    void changeDir(int newX, int newY) {
+        if (keyPressed) return;
+        if (newX == -dirX && newY == -dirY) return;
+        nextDirX   = newX;
+        nextDirY   = newY;
+        keyPressed = true;
     }
 
-    Direction getDirection() const { return dir; }
+    void move() {
+        dirX       = nextDirX;
+        dirY       = nextDirY;
+        keyPressed = false;
 
-    // Move snake by one cell. Return new head position.
-    Cell move() {
-        Cell head = body.front();
-        switch (dir) {
-            case DIR_UP:    head.y -= 1; break;
-            case DIR_DOWN:  head.y += 1; break;
-            case DIR_LEFT:  head.x -= 1; break;
-            case DIR_RIGHT: head.x += 1; break;
-        }
-        body.push_front(head);
-        if (growPending > 0) {
-            growPending--;
-        } else {
-            body.pop_back();
-        }
-        return head;
+        SDL_Point newHead;
+        newHead.x = body[0].x + dirX * BOX;
+        newHead.y = body[0].y + dirY * BOX;
+
+        body.insert(body.begin(), newHead);
+        body.pop_back();
     }
 
-    void grow(int amount = 1) {
-        growPending += amount;
+    void grow() {
+        SDL_Point lastPart = body.back();
+        body.push_back(lastPart);
     }
 
-    bool hitsSelf() const {
-        if (body.size() < 4) return false;
-        const Cell& head = body.front();
-        int i = 0;
-        for (const auto& c : body) {
-            if (i > 0 && c.x == head.x && c.y == head.y) return true;
-            i++;
-        }
+    bool ateFood(SDL_Point food) {
+        return (body[0].x == food.x && body[0].y == food.y);
+    }
+
+    bool hitWall() {
+        if (body[0].x < 0)         return true;
+        if (body[0].x >= SCREEN_W) return true;
+        if (body[0].y < 0)         return true;
+        if (body[0].y >= SCREEN_H) return true;
         return false;
     }
 
-    bool occupies(int x, int y) const {
-        for (const auto& c : body) {
-            if (c.x == x && c.y == y) return true;
-        }
-        return false;
-    }
-
-    const std::deque<Cell>& getBody() const { return body; }
-
-private:
-    std::deque<Cell> body;
-    Direction dir;
-    int growPending;
-};
-
-struct Game {
-    // Grid config
-    const int cellSize = 20;
-    const int gridCols = 32; // 32 * 20 = 640
-    const int gridRows = 24; // 24 * 20 = 480
-
-    // Timing
-    const int tickMs = 120; // snake speed (lower is faster)
-
-    // SDL
-    SDL_Window* window = nullptr;
-    SDL_Renderer* renderer = nullptr;
-    TTF_Font* font = nullptr;
-
-    // RNG
-    std::mt19937 rng{std::random_device{}()};
-    std::uniform_int_distribution<int> randCol{0, gridCols - 1};
-    std::uniform_int_distribution<int> randRow{0, gridRows - 1};
-
-    // Game state
-    bool running = true;
-    bool gameOver = false;
-    Snake snake{gridCols / 2, gridRows / 2};
-    Cell food{0, 0};
-    int score = 0;
-
-    bool initSDL() {
-        if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER) != 0) {
-            std::cerr << "SDL_Init error: " << SDL_GetError() << "\n";
-            return false;
-        }
-        if (TTF_Init() != 0) {
-            std::cerr << "TTF_Init error: " << TTF_GetError() << "\n";
-            return false;
-        }
-
-        window = SDL_CreateWindow("Snake (SDL2)",
-                                  SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                                  gridCols * cellSize, gridRows * cellSize,
-                                  SDL_WINDOW_SHOWN);
-        if (!window) {
-            std::cerr << "SDL_CreateWindow error: " << SDL_GetError() << "\n";
-            return false;
-        }
-
-        renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-        if (!renderer) {
-            std::cerr << "SDL_CreateRenderer error: " << SDL_GetError() << "\n";
-            return false;
-        }
-
-        font = TTF_OpenFont("DejaVuSans.ttf", 18);
-        if (!font) {
-            std::cerr << "Warning: could not open font. Score text will be hidden. " << TTF_GetError() << "\n";
-        }
-
-        // Start snake slightly longer to look nicer
-        snake.grow(3);
-
-        placeFood();
-
-        return true;
-    }
-
-    void cleanup() {
-        if (font) { TTF_CloseFont(font); font = nullptr; }
-        if (renderer) { SDL_DestroyRenderer(renderer); renderer = nullptr; }
-        if (window) { SDL_DestroyWindow(window); window = nullptr; }
-        TTF_Quit();
-        SDL_Quit();
-    }
-
-    void placeFood() {
-        // Find a random free cell not occupied by snake
-        for (int tries = 0; tries < 1000; ++tries) {
-            int x = randCol(rng);
-            int y = randRow(rng);
-            if (!snake.occupies(x, y)) {
-                food = {x, y};
-                return;
+    bool hitSelf() {
+        for (int i = 1; i < (int)body.size(); i++) {
+            if (body[0].x == body[i].x && body[0].y == body[i].y) {
+                return true;
             }
         }
-        // Fallback (should never happen unless grid is full)
-        food = {0, 0};
+        return false;
     }
 
-    void handleInput() {
-        SDL_Event e;
-        while (SDL_PollEvent(&e)) {
-            if (e.type == SDL_QUIT) {
-                running = false;
-            } else if (e.type == SDL_KEYDOWN) {
-                switch (e.key.keysym.sym) {
-                    case SDLK_ESCAPE:
-                        running = false;
-                        break;
-                    case SDLK_UP:
-                    case SDLK_w:
-                        snake.setDirection(DIR_UP);
-                        break;
-                    case SDLK_DOWN:
-                    case SDLK_s:
-                        snake.setDirection(DIR_DOWN);
-                        break;
-                    case SDLK_LEFT:
-                    case SDLK_a:
-                        snake.setDirection(DIR_LEFT);
-                        break;
-                    case SDLK_RIGHT:
-                    case SDLK_d:
-                        snake.setDirection(DIR_RIGHT);
-                        break;
-                    case SDLK_r:
-                        if (gameOver) reset();
-                        break;
+    void draw(SDL_Renderer* renderer) {
+        for (int i = 0; i < (int)body.size(); i++) {
+            if (i == 0)
+                drawBox(renderer, body[i].x, body[i].y, BOX, COLOR_DKGREEN);
+            else
+                drawBox(renderer, body[i].x, body[i].y, BOX, COLOR_GREEN);
+        }
+    }
+};
+
+int main(int argc, char* argv[]) {
+    srand((unsigned int)time(nullptr));
+
+    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+        cout << "SDL চালু হয়নি: " << SDL_GetError() << endl;
+        return 1;
+    }
+
+    if (TTF_Init() != 0) {
+        cout << "TTF চালু হয়নি: " << TTF_GetError() << endl;
+    }
+
+    SDL_Window* window = SDL_CreateWindow(
+        "Snake Game",
+        SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED,
+        SCREEN_W, SCREEN_H,
+        SDL_WINDOW_SHOWN
+    );
+
+    if (window == nullptr) {
+        cout << "Window তৈরি হয়নি: " << SDL_GetError() << endl;
+        SDL_Quit();
+        return 1;
+    }
+
+    SDL_Renderer* renderer = SDL_CreateRenderer(
+        window, -1, SDL_RENDERER_ACCELERATED
+    );
+
+    if (renderer == nullptr) {
+        cout << "Renderer তৈরি হয়নি: " << SDL_GetError() << endl;
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
+
+    TTF_Font* normalFont = findFont(22);
+    TTF_Font* bigFont    = findFont(44);
+
+    Snake     snake(SCREEN_W / 2, SCREEN_H / 2);
+    SDL_Point food  = makeFood(snake.body);
+    int       score = 0;
+    bool      gameOver = false;
+    bool      quit     = false;
+    Uint32    lastMoveTime = SDL_GetTicks();
+    SDL_Event event;
+
+    while (!quit) {
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_QUIT) {
+                quit = true;
+            }
+
+            if (event.type == SDL_KEYDOWN) {
+                if (gameOver) {
+                    if (event.key.keysym.sym == SDLK_r) {
+                        snake        = Snake(SCREEN_W / 2, SCREEN_H / 2);
+                        food         = makeFood(snake.body);
+                        score        = 0;
+                        gameOver     = false;
+                        lastMoveTime = SDL_GetTicks();
+                    }
+                    if (event.key.keysym.sym == SDLK_ESCAPE) quit = true;
+                } else {
+                    if (event.key.keysym.sym == SDLK_UP)    snake.changeDir( 0, -1);
+                    if (event.key.keysym.sym == SDLK_DOWN)  snake.changeDir( 0,  1);
+                    if (event.key.keysym.sym == SDLK_RIGHT) snake.changeDir( 1,  0);
                 }
             }
         }
-    }
 
-    void reset() {
-        gameOver = false;
-        score = 0;
-        snake = Snake(gridCols / 2, gridRows / 2);
-        snake.grow(3);
-        placeFood();
-    }
+        if (!gameOver) {
+            Uint32 now = SDL_GetTicks();
 
-    void update() {
-        if (gameOver) return;
+            if (now - lastMoveTime >= GAME_SPEED) {
+                lastMoveTime = now;
+                snake.move();
 
-        Cell head = snake.move();
-
-        // Boundary collision
-        if (head.x < 0 || head.x >= gridCols || head.y < 0 || head.y >= gridRows) {
-            gameOver = true;
-            return;
-        }
-
-        // Self collision
-        if (snake.hitsSelf()) {
-            gameOver = true;
-            return;
-        }
-
-        // Food collision
-        if (head.x == food.x && head.y == food.y) {
-            snake.grow(2);
-            score += 10;
-            placeFood();
-        }
-    }
-
-    void drawRectCell(int cx, int cy, SDL_Color col) {
-        SDL_Rect r{cx * cellSize, cy * cellSize, cellSize, cellSize};
-        SDL_SetRenderDrawColor(renderer, col.r, col.g, col.b, col.a);
-        SDL_RenderFillRect(renderer, &r);
-    }
-
-    void drawGrid() {
-        SDL_SetRenderDrawColor(renderer, 40, 40, 40, 255);
-        for (int x = 0; x <= gridCols; ++x) {
-            SDL_RenderDrawLine(renderer, x * cellSize, 0, x * cellSize, gridRows * cellSize);
-        }
-        for (int y = 0; y <= gridRows; ++y) {
-            SDL_RenderDrawLine(renderer, 0, y * cellSize, gridCols * cellSize, y * cellSize);
-        }
-    }
-
-    void drawText(const std::string& text, int x, int y, SDL_Color col) {
-        if (!font) return;
-        SDL_Surface* surf = TTF_RenderText_Blended(font, text.c_str(), col);
-        if (!surf) return;
-        SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, surf);
-        SDL_FreeSurface(surf);
-        if (!tex) return;
-
-        int w, h;
-        SDL_QueryTexture(tex, nullptr, nullptr, &w, &h);
-        SDL_Rect dst{x, y, w, h};
-        SDL_RenderCopy(renderer, tex, nullptr, &dst);
-        SDL_DestroyTexture(tex);
-    }
-
-    void render() {
-        // Clear background
-        SDL_SetRenderDrawColor(renderer, 18, 18, 18, 255);
-        SDL_RenderClear(renderer);
-
-        // Optional grid (comment out if you want a cleaner look)
-        drawGrid();
-
-        // Draw food
-        drawRectCell(food.x, food.y, SDL_Color{220, 70, 70, 255});
-
-        // Draw snake (head brighter)
-        bool first = true;
-        for (const auto& c : snake.getBody()) {
-            if (first) {
-                drawRectCell(c.x, c.y, SDL_Color{100, 200, 100, 255});
-                first = false;
-            } else {
-                drawRectCell(c.x, c.y, SDL_Color{60, 160, 60, 255});
+                if (snake.hitWall() || snake.hitSelf()) {
+                    gameOver = true;
+                } else if (snake.ateFood(food)) {
+                    snake.grow();
+                    score = score + 10;
+                    food  = makeFood(snake.body);
+                }
             }
         }
 
-        // Score
-        drawText("Score: " + std::to_string(score), 8, 6, SDL_Color{230, 230, 230, 255});
+        SDL_SetRenderDrawColor(renderer, 30, 30, 30, 255);
+        SDL_RenderClear(renderer);
 
-        // Game over overlay
+        drawBox(renderer, food.x, food.y, BOX, COLOR_RED);
+        snake.draw(renderer);
+        drawText(renderer, normalFont, "Score: " + to_string(score), 10, 10, COLOR_WHITE);
+
         if (gameOver) {
-            // Darken
             SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
             SDL_SetRenderDrawColor(renderer, 0, 0, 0, 160);
-            SDL_Rect full{0, 0, gridCols * cellSize, gridRows * cellSize};
-            SDL_RenderFillRect(renderer, &full);
+            SDL_Rect darkScreen = {0, 0, SCREEN_W, SCREEN_H};
+            SDL_RenderFillRect(renderer, &darkScreen);
 
-            drawText("GAME OVER", 200, 180, SDL_Color{255, 80, 80, 255});
-            drawText("Final Score: " + std::to_string(score), 200, 220, SDL_Color{230, 230, 230, 255});
-            drawText("Press R to Restart, ESC to Quit", 140, 260, SDL_Color{200, 200, 200, 255});
+            drawTextCentered(renderer, bigFont,    "GAME OVER",                      SCREEN_H/2 - 80, COLOR_RED);
+            drawTextCentered(renderer, normalFont, "Final Score: " + to_string(score), SCREEN_H/2,    COLOR_YELLOW);
+            drawTextCentered(renderer, normalFont, "R = New Game        ESC = Quit", SCREEN_H/2 + 55, COLOR_WHITE);
         }
 
         SDL_RenderPresent(renderer);
+        SDL_Delay(10);
     }
 
-    void run() {
-        if (!initSDL()) return;
+    if (normalFont) TTF_CloseFont(normalFont);
+    if (bigFont)    TTF_CloseFont(bigFont);
+    TTF_Quit();
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 
-        Uint32 lastTick = SDL_GetTicks();
-
-        while (running) {
-            handleInput();
-
-            Uint32 now = SDL_GetTicks();
-            if (now - lastTick >= (Uint32)tickMs) {
-                update();
-                lastTick = now;
-            }
-
-            render();
-
-            // Small delay to not burn CPU
-            SDL_Delay(1);
-        }
-
-        cleanup();
-    }
-};
-
-int main(int, char**) {
-    Game g;
-    g.run();
     return 0;
 }
